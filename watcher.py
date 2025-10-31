@@ -311,29 +311,54 @@ class LogWatcher:
             time.sleep(2)
 
         print("✅ Log file found. Starting to monitor...")
-
-        # Open log file and seek to end
-        with open(self.log_file_path, 'r') as f:
-            # Go to end of file
-            f.seek(0, 2)
-
-            while True:
-                line = f.readline()
-
+        
+        # Start from end of existing logs
+        try:
+            with open(self.log_file_path, 'r') as f:
+                # Move to end to get initial position
+                f.read()
+        except Exception as e:
+            print(f"⚠️  Note: {e}")
+        
+        # Use subprocess to tail the file (more reliable in Docker volumes)
+        import subprocess
+        
+        try:
+            # Use tail -F which handles file rotation and follows by name
+            proc = subprocess.Popen(
+                ['tail', '-F', '-n', '0', self.log_file_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                bufsize=1
+            )
+            
+            print("📡 Monitoring started. Waiting for new log entries...")
+            
+            for line in iter(proc.stdout.readline, ''):
                 if not line:
-                    # No new data, sleep briefly
                     time.sleep(0.1)
                     continue
-
+                
                 # Process the log line
                 parsed = self.parse_log_line(line)
-
+                
                 if parsed and parsed['pool']:
                     # Check for failover
                     self.check_failover(parsed['pool'])
-
+                    
                     # Check error rate
                     self.check_error_rate(parsed)
+                    
+        except KeyboardInterrupt:
+            if proc:
+                proc.terminate()
+            raise
+        except Exception as e:
+            print(f"❌ Error in tail process: {e}")
+            if proc:
+                proc.terminate()
+            raise
 
     def run(self):
         """Main entry point"""
