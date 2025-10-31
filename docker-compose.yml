@@ -1,0 +1,95 @@
+services:
+  # Blue Instance
+  app_blue:
+    image: ${BLUE_IMAGE}
+    container_name: app_blue
+    ports:
+      - "8081:3000"
+    environment:
+      - APP_POOL=blue
+      - RELEASE_ID=${RELEASE_ID_BLUE}
+      - PORT=${PORT:-3000}
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Green Instance
+  app_green:
+    image: ${GREEN_IMAGE}
+    container_name: app_green
+    ports:
+      - "8082:3000"
+    environment:
+      - APP_POOL=green
+      - RELEASE_ID=${RELEASE_ID_GREEN}
+      - PORT=${PORT:-3000}
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_proxy
+    ports:
+      - "8080:80"
+    environment:
+      - ACTIVE_POOL=${ACTIVE_POOL}
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ./entrypoint.sh:/docker-entrypoint.d/40-generate-config.sh:ro
+      - nginx_logs:/var/log/nginx
+    command: >
+      sh -c "apk add --no-cache gettext &&
+             if [ \"$$ACTIVE_POOL\" = \"blue\" ]; then export BACKUP_POOL=green; else export BACKUP_POOL=blue; fi &&
+             envsubst '$${ACTIVE_POOL} $${BACKUP_POOL}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf &&
+             nginx -t &&
+             exec nginx -g 'daemon off;'"
+    networks:
+      - app_network
+    depends_on:
+      - app_blue
+      - app_green
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Alert Watcher Service (Stage 3)
+  alert_watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile.watcher
+    container_name: alert_watcher
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - ERROR_RATE_THRESHOLD=${ERROR_RATE_THRESHOLD:-2}
+      - WINDOW_SIZE=${WINDOW_SIZE:-200}
+      - ALERT_COOLDOWN_SEC=${ALERT_COOLDOWN_SEC:-300}
+      - MAINTENANCE_MODE=${MAINTENANCE_MODE:-false}
+      - ACTIVE_POOL=${ACTIVE_POOL}
+    volumes:
+      - nginx_logs:/var/log/nginx:ro
+    networks:
+      - app_network
+    depends_on:
+      - nginx
+    restart: unless-stopped
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  nginx_logs:

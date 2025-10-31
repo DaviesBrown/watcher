@@ -1,0 +1,107 @@
+events {
+    worker_connections 1024;
+}
+
+http {
+    # Custom log format for Stage 3 monitoring
+    # Captures: pool, release, upstream status, latency, and upstream address
+    log_format detailed_access '$remote_addr - $remote_user [$time_local] '
+                               '"$request" $status $body_bytes_sent '
+                               '"$http_referer" "$http_user_agent" '
+                               'pool=$upstream_http_x_app_pool '
+                               'release=$upstream_http_x_release_id '
+                               'upstream_status=$upstream_status '
+                               'upstream=$upstream_addr '
+                               'request_time=$request_time '
+                               'upstream_response_time=$upstream_response_time';
+
+    # Upstream configuration for Blue/Green deployment
+    upstream app_backend {
+        # Active pool based on ACTIVE_POOL environment variable
+        server app_${ACTIVE_POOL}:3000 max_fails=2 fail_timeout=5s;
+        # Backup pool - automatically used when primary fails
+        server app_${BACKUP_POOL}:3000 backup;
+    }
+
+    # Server configuration
+    server {
+        listen 80;
+        server_name localhost;
+
+        # Logging with custom format
+        access_log /var/log/nginx/access.log detailed_access;
+        error_log /var/log/nginx/error.log warn;
+
+        # Health check endpoint
+        location /healthz {
+            proxy_pass http://app_backend/healthz;
+            proxy_connect_timeout 2s;
+            proxy_send_timeout 2s;
+            proxy_read_timeout 2s;
+            proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            proxy_next_upstream_tries 2;
+        }
+
+        # Version endpoint
+        location /version {
+            proxy_pass http://app_backend/version;
+            
+            # Tight timeouts for quick failure detection
+            proxy_connect_timeout 2s;
+            proxy_send_timeout 2s;
+            proxy_read_timeout 2s;
+            
+            # Retry on errors, timeouts, and 5xx responses
+            proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            proxy_next_upstream_tries 2;
+            
+            # Forward all headers from upstream to client
+            proxy_pass_request_headers on;
+            
+            # Preserve upstream headers
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Chaos endpoints (pass through to backend)
+        location /chaos/ {
+            proxy_pass http://app_backend;
+            
+            # Tight timeouts
+            proxy_connect_timeout 2s;
+            proxy_send_timeout 2s;
+            proxy_read_timeout 2s;
+            
+            # Retry policy
+            proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            proxy_next_upstream_tries 2;
+            
+            # Forward headers
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # Default catch-all location
+        location / {
+            proxy_pass http://app_backend;
+            
+            # Tight timeouts for quick failure detection
+            proxy_connect_timeout 2s;
+            proxy_send_timeout 2s;
+            proxy_read_timeout 2s;
+            
+            # Retry on errors, timeouts, and 5xx responses
+            proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            proxy_next_upstream_tries 2;
+            
+            # Forward all headers
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
