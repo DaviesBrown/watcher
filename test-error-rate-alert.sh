@@ -19,12 +19,12 @@ NC='\033[0m' # No Color
 # Check prerequisites
 echo "🔍 Checking prerequisites..."
 
-if ! docker compose ps | grep -q "nginx_proxy.*running"; then
+if ! docker compose ps nginx 2>/dev/null | grep -q "Up"; then
     echo -e "${RED}❌ Nginx proxy is not running. Start services first: docker compose up -d${NC}"
     exit 1
 fi
 
-if ! docker compose ps | grep -q "alert_watcher.*running"; then
+if ! docker compose ps alert_watcher 2>/dev/null | grep -q "Up"; then
     echo -e "${RED}❌ Alert watcher is not running. Start services first: docker compose up -d${NC}"
     exit 1
 fi

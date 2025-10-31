@@ -17,8 +17,9 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 # Check if nginx is running
-if ! docker compose ps | grep -q "nginx_proxy.*running"; then
+if ! docker compose ps nginx 2>/dev/null | grep -q "Up"; then
     echo -e "${RED}❌ Nginx proxy is not running${NC}"
+    echo "Run: docker compose up -d"
     exit 1
 fi
 
