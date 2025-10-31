@@ -311,7 +311,7 @@ class LogWatcher:
             time.sleep(2)
 
         print("✅ Log file found. Starting to monitor...")
-        
+
         # Start from end of existing logs
         try:
             with open(self.log_file_path, 'r') as f:
@@ -319,10 +319,10 @@ class LogWatcher:
                 f.read()
         except Exception as e:
             print(f"⚠️  Note: {e}")
-        
+
         # Use subprocess to tail the file (more reliable in Docker volumes)
         import subprocess
-        
+
         try:
             # Use tail -F which handles file rotation and follows by name
             proc = subprocess.Popen(
@@ -332,24 +332,24 @@ class LogWatcher:
                 universal_newlines=True,
                 bufsize=1
             )
-            
+
             print("📡 Monitoring started. Waiting for new log entries...")
-            
+
             for line in iter(proc.stdout.readline, ''):
                 if not line:
                     time.sleep(0.1)
                     continue
-                
+
                 # Process the log line
                 parsed = self.parse_log_line(line)
-                
+
                 if parsed and parsed['pool']:
                     # Check for failover
                     self.check_failover(parsed['pool'])
-                    
+
                     # Check error rate
                     self.check_error_rate(parsed)
-                    
+
         except KeyboardInterrupt:
             if proc:
                 proc.terminate()
