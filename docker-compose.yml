@@ -51,6 +51,8 @@ services:
       - nginx_logs:/var/log/nginx
     command: >
       sh -c "apk add --no-cache gettext &&
+             rm -f /var/log/nginx/access.log /var/log/nginx/error.log &&
+             touch /var/log/nginx/access.log /var/log/nginx/error.log &&
              if [ \"$$ACTIVE_POOL\" = \"blue\" ]; then export BACKUP_POOL=green; else export BACKUP_POOL=blue; fi &&
              envsubst '$${ACTIVE_POOL} $${BACKUP_POOL}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf &&
              nginx -t &&
