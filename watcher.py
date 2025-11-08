@@ -343,12 +343,13 @@ class LogWatcher:
                 # Process the log line
                 parsed = self.parse_log_line(line)
 
-                if parsed and parsed['pool']:
-                    # Check for failover
-                    self.check_failover(parsed['pool'])
-
-                    # Check error rate
+                if parsed:
+                    # Check error rate (independent of pool)
                     self.check_error_rate(parsed)
+
+                    # Check for failover only if pool is available
+                    if parsed['pool']:
+                        self.check_failover(parsed['pool'])
 
         except KeyboardInterrupt:
             if proc:

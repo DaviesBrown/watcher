@@ -43,8 +43,8 @@ curl -s -X POST http://localhost:8082/chaos/stop > /dev/null 2>&1 || true
 echo "Restarting services..."
 docker compose restart app_blue app_green nginx > /dev/null 2>&1
 
-echo "Waiting for services to be healthy (10 seconds)..."
-sleep 10
+echo "Waiting for services to be healthy (15 seconds)..."
+sleep 15
 
 echo -e "${GREEN}✅ Environment reset${NC}"
 echo ""
@@ -68,7 +68,7 @@ else
 fi
 echo ""
 
-# Step 3: Enable chaos to generate errors
+# Step 3: Enable chaos mode on active pool to generate errors
 echo "💥 Step 3: Enabling error mode on active pool (port $CHAOS_PORT)..."
 CHAOS_RESPONSE=$(curl -s -X POST "http://localhost:${CHAOS_PORT}/chaos/start?mode=error")
 echo "Chaos response: $CHAOS_RESPONSE"
