@@ -207,14 +207,19 @@ class LogWatcher:
         if not self.slack_webhook_url:
             return
 
+        # Build formatted text with fields
+        slack_text = f"{message}\n"
+        if fields:
+            for field in fields:
+                slack_text += f"\n*{field['title']}:* {field['value']}"
+
         payload = {
             "attachments": [
                 {
                     "color": color,
                     "title": "🚨 Blue/Green Deployment Alert",
-                    "text": message,
-                    "fields": fields or [],
-                    "footer": "Nginx Log Watcher",
+                    "text": slack_text,
+                    "footer": f"Nginx Log Watcher | {timestamp}",
                     "ts": int(time.time())
                 }
             ]
