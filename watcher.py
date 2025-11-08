@@ -123,11 +123,24 @@ class LogWatcher:
             old_pool = self.last_seen_pool
             self.last_seen_pool = pool
 
-            if not self.maintenance_mode:
-                self.send_failover_alert(old_pool, pool)
-            else:
+            # Check if this is a recovery (back to initial/primary pool)
+            if pool == self.initial_active_pool and old_pool != self.initial_active_pool:
+                # This is a recovery - server came back up
                 print(
-                    f"🔇 Failover detected ({old_pool} → {pool}) but suppressed (maintenance mode)")
+                    f"✅ Recovery detected: {old_pool} → {pool} (back to primary)")
+                if not self.maintenance_mode:
+                    self.send_recovery_alert()
+                else:
+                    print(
+                        f"🔇 Recovery detected ({old_pool} → {pool}) but suppressed (maintenance mode)")
+            else:
+                # This is a failover - server went down
+                print(f"⚠️  Failover detected: {old_pool} → {pool}")
+                if not self.maintenance_mode:
+                    self.send_failover_alert(old_pool, pool)
+                else:
+                    print(
+                        f"🔇 Failover detected ({old_pool} → {pool}) but suppressed (maintenance mode)")
 
             return True
 
